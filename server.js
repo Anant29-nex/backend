@@ -7,7 +7,11 @@ const postRoutes = require("./routes/posts");
 
 dotenv.config();
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://frontend-two-fawn-23.vercel.app/",
+  })
+);
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
