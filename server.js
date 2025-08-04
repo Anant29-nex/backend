@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 app.use(
   cors({
-    origin: "https://frontend-two-fawn-23.vercel.app/",
+    origin: "https://frontend-two-fawn-23.vercel.app",
   })
 );
 app.use(express.json());
