@@ -1,82 +1,76 @@
+// routes/posts.js
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const Post = require("../models/Post");
 const authMiddleware = require("../middleware/auth");
 const router = express.Router();
 
-// Middleware to authenticate token
-function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ message: "No token" });
-
-  const token = authHeader.split(" ")[1];
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: "Invalid token" });
-    req.user = user;
-    next();
-  });
-}
-
-const auth = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "No token" });
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(403).json({ message: "Invalid token" });
-  }
-};
-
-router.get("/all", async (req, res) => {
+// Public: list all
+router.get("/all", async (_req, res) => {
   try {
     const posts = await Post.find()
       .populate("author", "name")
       .sort({ createdAt: -1 });
     res.json(posts);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Failed to fetch posts" });
   }
 });
 
+// Public: single post by id
 router.get("/public/:id", async (req, res) => {
   try {
     const post = await Post.findById(req.params.id).populate("author", "name");
     if (!post) return res.status(404).json({ message: "Post not found" });
     res.json(post);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Failed to fetch post" });
   }
 });
 
+// 🔁 Alias to match frontend that calls /all/:id
+router.get("/all/:id", async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id).populate("author", "name");
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    res.json(post);
+  } catch {
+    res.status(500).json({ message: "Failed to fetch post" });
+  }
+});
+
+// Private: current user's posts
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const posts = await Post.find({ author: req.user.id }).sort({
       createdAt: -1,
     });
     res.json(posts);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Failed to fetch posts" });
   }
 });
 
+// Create
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { title, content } = req.body;
-    const newPost = new Post({
+    const { title, content, tags, categories } = req.body;
+    const post = new Post({
       title,
       content,
-      author: req.user.id, // get from JWT
+      tags: Array.isArray(tags) ? tags : [],
+      categories: Array.isArray(categories) ? categories : [],
+      author: req.user.id,
     });
-    await newPost.save();
-    res.status(201).json(newPost);
-  } catch (err) {
+    await post.save();
+    res.status(201).json(post);
+  } catch {
     res.status(500).json({ message: "Failed to create post" });
   }
 });
 
-router.put("/:id", auth, async (req, res) => {
+// Update
+router.put("/:id", authMiddleware, async (req, res) => {
   const post = await Post.findById(req.params.id);
   if (!post) return res.status(404).json({ message: "Not found" });
   if (post.author.toString() !== req.user.id)
@@ -87,7 +81,8 @@ router.put("/:id", auth, async (req, res) => {
   res.json(post);
 });
 
-router.delete("/:id", auth, async (req, res) => {
+// Delete
+router.delete("/:id", authMiddleware, async (req, res) => {
   const post = await Post.findById(req.params.id);
   if (!post) return res.status(404).json({ message: "Not found" });
   if (post.author.toString() !== req.user.id)
